@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>同意書管理</title>
+
+<link rel="manifest" href="manifest.json">
+
+<meta name="theme-color" content="#4CAF50">
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+<style>
+
+body{
+font-family:sans-serif;
+margin:15px;
+background:#f5f5f5;
+}
+
+h1{
+font-size:22px;
+}
+
+.card{
+background:white;
+padding:15px;
+margin-bottom:15px;
+border-radius:10px;
+box-shadow:0 0 5px rgba(0,0,0,0.1);
+}
+
+input,select,button{
+padding:8px;
+margin:4px;
+font-size:16px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+td,th{
+padding:8px;
+border-bottom:1px solid #ddd;
+}
+
+.expired{background:#ffb3b3}
+.red{background:#ffcccc}
+.orange{background:#ffe0b3}
+.yellow{background:#fff6b3}
+
+</style>
+
+</head>
+
+<body>
+
+<h1 id="title"></h1>
+
+<div id="clinicSetup" class="card" style="display:none">
+
+<h3>施術所登録</h3>
+
+<input id="clinicName" placeholder="施術所名">
+<input id="clinicTel" placeholder="電話番号">
+<input id="clinicAddress" placeholder="住所">
+
+<br>
+
+<button onclick="saveClinic()">保存</button>
+
+</div>
+
+<div id="mainApp" style="display:none">
+
+<div class="card">
+
+<h3>患者登録</h3>
+
+<input id="name" placeholder="患者名">
+
+<br>
+
+同意日  
+<input type="date" id="consent">
+
+<br>
+
+初療日  
+<input type="date" id="first">
+
+<br>
+
+<select id="type">
+<option value="normal">マッサージ</option>
+<option value="deform">変形徒手</option>
+</select>
+
+<br>
+
+<button onclick="addPatient()">登録</button>
+
+</div>
+
+
+<div class="card">
+
+<h3>更新患者（30日以内）</h3>
+
+<table>
+
+<thead>
+<tr>
+<th>患者</th>
+<th>期限</th>
+<th>残日</th>
+</tr>
+</thead>
+
+<tbody id="updateList"></tbody>
+
+</table>
+
+</div>
+
+
+<div class="card">
+
+<h3>患者一覧</h3>
+
+<table>
+
+<thead>
+<tr>
+<th>患者</th>
+<th>期限</th>
+<th>残日</th>
+<th></th>
+</tr>
+</thead>
+
+<tbody id="patientList"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+let clinic=null
+let patients=[]
+
+
+function init(){
+
+clinic=JSON.parse(localStorage.getItem("clinic"))
+patients=JSON.parse(localStorage.getItem("patients")||"[]")
+
+if(!clinic){
+clinicSetup.style.display="block"
+}else{
+startApp()
+}
+
+}
+
+
+function startApp(){
+
+mainApp.style.display="block"
+
+title.innerText=clinic.name+" 同意書管理"
+
+render()
+
+}
+
+
+function saveClinic(){
+
+clinic={
+name:clinicName.value,
+tel:clinicTel.value,
+address:clinicAddress.value
+}
+
+localStorage.setItem("clinic",JSON.stringify(clinic))
+
+clinicSetup.style.display="none"
+
+startApp()
+
+}
+
+
+function addPatient(){
+
+let p={
+name:name.value,
+consent:consent.value,
+first:first.value,
+type:type.value
+}
+
+patients.push(p)
+
+savePatients()
+
+render()
+
+}
+
+
+function savePatients(){
+
+localStorage.setItem("patients",JSON.stringify(patients))
+
+}
+
+
+function calcExpiry(consent,first,type){
+
+let start=new Date(consent)
+
+if(first){
+
+let f=new Date(first)
+
+let diff=(f-start)/(1000*60*60*24)
+
+if(diff<=30){
+start=f
+}
+
+}
+
+if(type==="deform"){
+
+let d=new Date(start)
+
+d.setMonth(d.getMonth()+1)
+
+d.setDate(d.getDate()-1)
+
+return d
+
+}
+
+let day=start.getDate()
+let m=start.getMonth()
+let y=start.getFullYear()
+
+let add=(day<=15)?6:7
+
+return new Date(y,m+add+1,0)
+
+}
+
+
+function render(){
+
+patientList.innerHTML=""
+updateList.innerHTML=""
+
+patients.forEach((p,i)=>{
+
+let expiry=calcExpiry(p.consent,p.first,p.type)
+
+let today=new Date()
+
+let diff=Math.ceil((expiry-today)/(1000*60*60*24))
+
+let cls=""
+
+if(diff<0)cls="expired"
+else if(diff<=7)cls="red"
+else if(diff<=14)cls="orange"
+else if(diff<=30)cls="yellow"
+
+let row=`
+<tr class="${cls}">
+<td>${p.name}</td>
+<td>${expiry.toLocaleDateString()}</td>
+<td>${diff}</td>
+<td><button onclick="del(${i})">削除</button></td>
+</tr>
+`
+
+patientList.innerHTML+=row
+
+if(diff<=30){
+
+updateList.innerHTML+=`
+<tr class="${cls}">
+<td>${p.name}</td>
+<td>${expiry.toLocaleDateString()}</td>
+<td>${diff}</td>
+</tr>
+`
+
+}
+
+})
+
+}
+
+
+function del(i){
+
+patients.splice(i,1)
+
+savePatients()
+
+render()
+
+}
+
+
+init()
+
+
+if("serviceWorker" in navigator){
+
+navigator.serviceWorker.register("sw.js")
+
+}
+
+</script>
+
+</body>
+</html>
