@@ -11,8 +11,6 @@
 
 <meta name="theme-color" content="#4CAF50">
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-
 <style>
 
 body{
@@ -45,14 +43,26 @@ border-collapse:collapse;
 }
 
 td,th{
-padding:8px;
-border-bottom:1px solid #ddd;
+padding:6px;
+border:1px solid #ddd;
+vertical-align:top;
+font-size:12px;
+height:70px;
+}
+
+.day{
+font-weight:bold;
 }
 
 .expired{background:#ffb3b3}
 .red{background:#ffcccc}
 .orange{background:#ffe0b3}
 .yellow{background:#fff6b3}
+
+.calendarName{
+font-size:11px;
+display:block;
+}
 
 </style>
 
@@ -150,12 +160,42 @@ border-bottom:1px solid #ddd;
 
 </div>
 
+
+<div class="card">
+
+<h3>カレンダー</h3>
+
+<button onclick="prevMonth()">←</button>
+<span id="monthLabel"></span>
+<button onclick="nextMonth()">→</button>
+
+<table>
+
+<thead>
+<tr>
+<th>日</th>
+<th>月</th>
+<th>火</th>
+<th>水</th>
+<th>木</th>
+<th>金</th>
+<th>土</th>
+</tr>
+</thead>
+
+<tbody id="calendarBody"></tbody>
+
+</table>
+
+</div>
+
 </div>
 
 <script>
 
 let clinic=null
 let patients=[]
+let currentMonth=new Date()
 
 
 function init(){
@@ -170,7 +210,6 @@ startApp()
 }
 
 }
-
 
 function startApp(){
 
@@ -309,6 +348,8 @@ updateList.innerHTML+=`
 
 })
 
+renderCalendar()
+
 }
 
 
@@ -323,8 +364,85 @@ render()
 }
 
 
-init()
 
+function renderCalendar(){
+
+let y=currentMonth.getFullYear()
+let m=currentMonth.getMonth()
+
+monthLabel.innerText=y+"年"+(m+1)+"月"
+
+let firstDay=new Date(y,m,1).getDay()
+
+let lastDate=new Date(y,m+1,0).getDate()
+
+let html=""
+
+let day=1
+
+for(let i=0;i<6;i++){
+
+html+="<tr>"
+
+for(let j=0;j<7;j++){
+
+if(i===0 && j<firstDay || day>lastDate){
+
+html+="<td></td>"
+
+}else{
+
+let cell=`<div class="day">${day}</div>`
+
+patients.forEach(p=>{
+
+let exp=calcExpiry(p.consent,p.first,p.type)
+
+if(exp.getFullYear()==y && exp.getMonth()==m && exp.getDate()==day){
+
+cell+=`<span class="calendarName">${p.name}</span>`
+
+}
+
+})
+
+html+=`<td>${cell}</td>`
+
+day++
+
+}
+
+}
+
+html+="</tr>"
+
+}
+
+calendarBody.innerHTML=html
+
+}
+
+
+
+function prevMonth(){
+
+currentMonth.setMonth(currentMonth.getMonth()-1)
+
+renderCalendar()
+
+}
+
+function nextMonth(){
+
+currentMonth.setMonth(currentMonth.getMonth()+1)
+
+renderCalendar()
+
+}
+
+
+
+init()
 
 if("serviceWorker" in navigator){
 
