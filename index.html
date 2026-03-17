@@ -109,18 +109,14 @@ flex-wrap:wrap;
 <div class="flex-group">
 
 <select id="sort">
-
 <option value="expiry">期限順</option>
 <option value="name">名前順</option>
-
 </select>
 
 <select id="filter">
-
 <option value="all">すべて</option>
 <option value="this">今月</option>
 <option value="next">来月</option>
-
 </select>
 
 </div>
@@ -156,7 +152,18 @@ flex-wrap:wrap;
 
 <button onclick="save()">保存</button>
 
+</div>
+
+
+<div class="card">
+
+<h3>バックアップ</h3>
+
 <button onclick="backupCSV()">CSV保存</button>
+<button onclick="backupJSON()">JSON保存（完全バックアップ）</button>
+
+<input type="file" id="restoreFile" style="display:none" accept=".json">
+<button onclick="restoreJSON()">JSON復元</button>
 
 </div>
 
@@ -183,19 +190,6 @@ flex-wrap:wrap;
 </div>
 
 
-<div class="card">
-
-<h3>更新カレンダー</h3>
-
-<h4 id="labelThis"></h4>
-<div id="calendarThis" class="calendar-grid"></div>
-
-<h4 id="labelNext"></h4>
-<div id="calendarNext" class="calendar-grid"></div>
-
-</div>
-
-
 <script>
 
 let patients=JSON.parse(localStorage.getItem("patients")||"[]")
@@ -209,7 +203,6 @@ let n=new Date(d)
 n.setMonth(n.getMonth()+m)
 return n
 }
-
 
 function calculateExpiry(consent,first,deform,isEdit){
 
@@ -236,7 +229,6 @@ return endOfMonth(addMonths(base,6))
 }
 
 }
-
 
 function save(){
 
@@ -286,11 +278,9 @@ patients.push(data)
 localStorage.setItem("patients",JSON.stringify(patients))
 
 clearForm()
-
 render()
 
 }
-
 
 function clearForm(){
 
@@ -304,7 +294,6 @@ memo.value=""
 
 }
 
-
 function render(){
 
 let tbody=document.getElementById("list")
@@ -312,30 +301,9 @@ let tbody=document.getElementById("list")
 tbody.innerHTML=""
 
 let now=new Date()
-
 now.setHours(0,0,0,0)
 
-let thisY=now.getFullYear()
-let thisM=now.getMonth()
-
-let nextDate=new Date(thisY,thisM+1,1)
-
-let nextY=nextDate.getFullYear()
-let nextM=nextDate.getMonth()
-
-labelThis.innerText=`${thisY}年${thisM+1}月`
-labelNext.innerText=`${nextY}年${nextM+1}月`
-
-thisMonthSummary.innerHTML=""
-nextMonthSummary.innerHTML=""
-
-let search=document.getElementById("search").value.toLowerCase()
-
-let list=patients.filter(p=>(p.name+p.memo).toLowerCase().includes(search))
-
-list.forEach(p=>{
-
-let real=patients.indexOf(p)
+patients.forEach((p,i)=>{
 
 let exp=new Date(p.expiry)
 
@@ -349,20 +317,13 @@ if(diff<0)tr.classList.add("expired")
 
 tr.innerHTML=`
 
-<td><b>${p.name}</b>${p.deform?"<br><small>(変形)</small>":""}</td>
-
+<td><b>${p.name}</b></td>
 <td>${exp.toLocaleDateString()}</td>
-
 <td class="${warn}">${diff<0?"期限切れ":diff+"日"}</td>
 
 <td>
-
-<button onclick="edit(${real})">編集</button>
-
-<button onclick="del(${real})">削除</button>
-
-<button onclick="addGoogle(${real})">Google</button>
-
+<button onclick="edit(${i})">編集</button>
+<button onclick="delPatient(${i})">削除</button>
 </td>
 
 `
@@ -371,57 +332,7 @@ tbody.appendChild(tr)
 
 })
 
-renderCalendar(thisY,thisM,"calendarThis")
-renderCalendar(nextY,nextM,"calendarNext")
-
 }
-
-
-function renderCalendar(y,m,target){
-
-let cal=document.getElementById(target)
-
-cal.innerHTML=""
-
-let first=new Date(y,m,1).getDay()
-
-for(let i=0;i<first;i++){
-
-let e=document.createElement("div")
-e.className="day"
-
-cal.appendChild(e)
-
-}
-
-let last=new Date(y,m+1,0).getDate()
-
-for(let i=1;i<=last;i++){
-
-let cell=document.createElement("div")
-
-cell.className="day"
-
-cell.innerHTML=`<b>${i}</b><br>`
-
-patients.forEach(p=>{
-
-let exp=new Date(p.expiry)
-
-if(exp.getFullYear()==y && exp.getMonth()==m && exp.getDate()==i){
-
-cell.innerHTML+=`<span style="color:red">●${p.name}</span><br>`
-
-}
-
-})
-
-cal.appendChild(cell)
-
-}
-
-}
-
 
 function edit(i){
 
@@ -437,8 +348,7 @@ memo.value=p.memo
 
 }
 
-
-function del(i){
+function delPatient(i){
 
 if(confirm("削除しますか？")){
 
@@ -451,24 +361,6 @@ render()
 }
 
 }
-
-
-function addGoogle(i){
-
-let p=patients[i]
-
-let exp=new Date(p.expiry)
-
-let dateStr=exp.toISOString().split("T")[0].replace(/-/g,"")
-
-let title=encodeURIComponent(p.name+" 同意書期限")
-
-let url=`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateStr}/${dateStr}`
-
-window.open(url)
-
-}
-
 
 function backupCSV(){
 
@@ -498,16 +390,63 @@ let a=document.createElement("a")
 
 a.href=URL.createObjectURL(blob)
 
-a.download=`同意書バックアップ_${new Date().toISOString().split("T")[0]}.csv`
+a.download=`consent_backup_${new Date().toISOString().split("T")[0]}.csv`
 
 a.click()
 
 }
 
+function backupJSON(){
 
-search.oninput=render
-sort.onchange=render
-filter.onchange=render
+let blob=new Blob([JSON.stringify(patients,null,2)],{type:"application/json"})
+
+let a=document.createElement("a")
+
+a.href=URL.createObjectURL(blob)
+
+a.download=`consent_backup_${new Date().toISOString().split("T")[0]}.json`
+
+a.click()
+
+}
+
+function restoreJSON(){
+
+document.getElementById("restoreFile").click()
+
+}
+
+restoreFile.addEventListener("change",function(e){
+
+let file=e.target.files[0]
+
+if(!file)return
+
+let reader=new FileReader()
+
+reader.onload=function(){
+
+try{
+
+patients=JSON.parse(reader.result)
+
+localStorage.setItem("patients",JSON.stringify(patients))
+
+render()
+
+alert("復元完了")
+
+}catch{
+
+alert("JSONファイルエラー")
+
+}
+
+}
+
+reader.readAsText(file)
+
+})
 
 render()
 
