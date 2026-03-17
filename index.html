@@ -1,179 +1,87 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-
 <meta charset="UTF-8">
-<title>同意書管理システム</title>
+<title>同意書管理システム V1.3</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <style>
-
-body{
-font-family:sans-serif;
-background:#f5f5f5;
-padding:20px;
-max-width:1000px;
-margin:auto;
-}
-
+body{font-family:sans-serif;background:#f5f5f5;padding:20px;max-width:1000px;margin:auto;}
 h1{text-align:center;}
-
-input,textarea,select,button{
-width:100%;
-padding:10px;
-margin:5px 0 15px 0;
-font-size:16px;
-box-sizing:border-box;
-border-radius:5px;
-border:1px solid #ccc;
-}
-
-button{
-background:#4CAF50;
-color:white;
-border:none;
-cursor:pointer;
-}
-
-.card{
-background:white;
-padding:15px;
-border-radius:8px;
-margin-bottom:20px;
-box-shadow:0 2px 5px rgba(0,0,0,0.1);
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-}
-
-th,td{
-border:1px solid #ddd;
-padding:10px;
-font-size:14px;
-}
-
+input,textarea,select,button{width:100%;padding:10px;margin:5px 0 15px 0;font-size:16px;box-sizing:border-box;border-radius:5px;border:1px solid #ccc;}
+button{background:#4CAF50;color:white;border:none;cursor:pointer;}
+.card{background:white;padding:15px;border-radius:8px;margin-bottom:20px;box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid #ddd;padding:10px;font-size:14px;}
 .expired{background:#ffd6d6;}
 .warn30{color:#caa400;font-weight:bold;}
 .warn14{color:#ff8800;font-weight:bold;}
 .warn7{color:red;font-weight:bold;}
-
-.calendar-grid{
-display:grid;
-grid-template-columns:repeat(7,1fr);
-gap:5px;
-}
-
-.day{
-border:1px solid #ddd;
-min-height:80px;
-padding:4px;
-font-size:11px;
-background:white;
-}
-
-.flex-group{
-display:flex;
-gap:10px;
-flex-wrap:wrap;
-}
-
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.day{border:1px solid #ddd;min-height:80px;padding:4px;font-size:11px;background:white;}
+.flex-group{display:flex;gap:10px;flex-wrap:wrap;}
 </style>
-
 </head>
-
 <body>
 
-<h1>同意書管理システム</h1>
+<h1>同意書管理システム V1.3</h1>
 
 <div class="card">
-
-<strong>今月更新</strong>
-<div id="thisMonthSummary"></div>
-
-<hr>
-
-<strong>来月更新</strong>
-<div id="nextMonthSummary"></div>
-
+  <strong>今月更新</strong>
+  <div id="thisMonthSummary"></div>
+  <hr>
+  <strong>来月更新</strong>
+  <div id="nextMonthSummary"></div>
 </div>
 
+<div class="card">
+  <h3>カレンダー</h3>
+  <div id="calendar" class="calendar-grid"></div>
+</div>
 
 <div class="card">
-
 <h3>検索</h3>
-
 <input id="search" placeholder="患者検索">
-
 <div class="flex-group">
-
 <select id="sort">
 <option value="expiry">期限順</option>
 <option value="name">名前順</option>
 </select>
-
 <select id="filter">
 <option value="all">すべて</option>
 <option value="this">今月</option>
 <option value="next">来月</option>
 </select>
-
 </div>
-
 </div>
-
 
 <div class="card">
-
 <h3 id="formTitle">患者登録</h3>
-
 <input type="hidden" id="editIndex">
-
 <label>患者名</label>
 <input id="name">
-
 <label>同意日</label>
 <input type="date" id="consent">
-
 <label>初療日</label>
 <input type="date" id="first">
-
-<label>
-<input type="checkbox" id="deform" style="width:auto">
-変形徒手
-</label>
-
+<label><input type="checkbox" id="deform" style="width:auto">変形徒手</label>
 <label>通知日数</label>
 <input type="number" id="notice" value="7">
-
 <label>メモ</label>
 <textarea id="memo"></textarea>
-
 <button onclick="save()">保存</button>
-
 </div>
 
-
 <div class="card">
-
 <h3>バックアップ</h3>
-
 <button onclick="backupCSV()">CSV保存</button>
 <button onclick="backupJSON()">JSON保存（完全バックアップ）</button>
-
 <input type="file" id="restoreFile" style="display:none" accept=".json">
 <button onclick="restoreJSON()">JSON復元</button>
-
 </div>
 
-
 <div class="card">
-
 <h3>患者一覧</h3>
-
 <table>
-
 <thead>
 <tr>
 <th>名前</th>
@@ -182,274 +90,210 @@ flex-wrap:wrap;
 <th>操作</th>
 </tr>
 </thead>
-
 <tbody id="list"></tbody>
-
 </table>
-
 </div>
 
-
 <script>
+let patients = JSON.parse(localStorage.getItem("patients") || "[]");
 
-let patients=JSON.parse(localStorage.getItem("patients")||"[]")
+// 日付計算ヘルパー
+function endOfMonth(d){ return new Date(d.getFullYear(),d.getMonth()+1,0) }
+function addMonths(d,m){ let n=new Date(d); n.setMonth(n.getMonth()+m); return n }
+function isValidDate(d){ return d instanceof Date && !isNaN(d) }
 
-function endOfMonth(d){
-return new Date(d.getFullYear(),d.getMonth()+1,0)
-}
-
-function addMonths(d,m){
-let n=new Date(d)
-n.setMonth(n.getMonth()+m)
-return n
-}
-
+// 期限計算
 function calculateExpiry(consent,first,deform,isEdit){
-
-let base=(isEdit||!first)?new Date(consent):new Date(first)
-
-if(deform){
-
-let e=new Date(base)
-e.setMonth(e.getMonth()+1)
-e.setDate(e.getDate()-1)
-
-return e
-
+  let base = (isEdit || !first) ? new Date(consent) : new Date(first)
+  if(!isValidDate(base)) base = new Date(consent)
+  if(deform){
+    let e=new Date(base); e.setMonth(e.getMonth()+1); e.setDate(e.getDate()-1); return e
+  }
+  if(base.getDate()<=15) return endOfMonth(addMonths(base,5))
+  return endOfMonth(addMonths(base,6))
 }
 
-if(base.getDate()<=15){
-
-return endOfMonth(addMonths(base,5))
-
-}else{
-
-return endOfMonth(addMonths(base,6))
-
-}
-
-}
-
+// 保存
 function save(){
-
-let idx=document.getElementById("editIndex").value
-
-let name=document.getElementById("name").value
-let consent=document.getElementById("consent").value
-let first=document.getElementById("first").value
-let deform=document.getElementById("deform").checked
-let notice=document.getElementById("notice").value
-let memo=document.getElementById("memo").value
-
-if(!name||!consent){
-
-alert("患者名と同意日は必須")
-return
-
+  let idx = document.getElementById("editIndex").value
+  let nameVal = document.getElementById("name").value.trim()
+  let consentVal = document.getElementById("consent").value
+  let firstVal = document.getElementById("first").value
+  let deformVal = document.getElementById("deform").checked
+  let noticeVal = document.getElementById("notice").value
+  let memoVal = document.getElementById("memo").value
+  if(!nameVal || !consentVal){ alert("患者名と同意日は必須"); return }
+  let isEdit = idx !== ""
+  let expiry = calculateExpiry(consentVal, firstVal, deformVal, isEdit)
+  let data = { id:isEdit ? patients[idx].id : Date.now(), name:nameVal, consent:consentVal, first:firstVal, deform:deformVal, notice:noticeVal, memo:memoVal, expiry:expiry.toISOString() }
+  if(isEdit) patients[idx]=data
+  else patients.push(data)
+  localStorage.setItem("patients", JSON.stringify(patients))
+  clearForm()
+  render()
 }
 
-let isEdit=idx!==""
-
-let expiry=calculateExpiry(consent,first,deform,isEdit)
-
-let data={
-
-id:isEdit?patients[idx].id:Date.now(),
-name,
-consent,
-first,
-deform,
-notice,
-memo,
-expiry:expiry.toISOString()
-
-}
-
-if(isEdit){
-
-patients[idx]=data
-
-}else{
-
-patients.push(data)
-
-}
-
-localStorage.setItem("patients",JSON.stringify(patients))
-
-clearForm()
-render()
-
-}
-
+// フォームクリア
 function clearForm(){
-
-editIndex.value=""
-name.value=""
-consent.value=""
-first.value=""
-deform.checked=false
-notice.value=7
-memo.value=""
-
+  editIndex.value=""; name.value=""; consent.value=""; first.value=""; deform.checked=false; notice.value=7; memo.value=""
 }
 
+// Googleカレンダー追加
+function addToGoogleCalendar(p){
+  let start = new Date(p.expiry)
+  let end = new Date(p.expiry); end.setHours(end.getHours()+1)
+  let url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(p.name+' 同意書期限')}&dates=${formatDate(start)}/${formatDate(end)}&details=${encodeURIComponent(p.memo)}`
+  window.open(url,"_blank")
+}
+function formatDate(d){ return d.toISOString().replace(/-|:|\.\d+/g,"") }
+
+// サマリー描画
+function renderSummary(){
+  let now=new Date(); now.setHours(0,0,0,0)
+  let thisMonth=[], nextMonth=[]
+  patients.forEach(p=>{
+    let exp=new Date(p.expiry)
+    let diff=Math.ceil((exp-now)/(1000*60*60*24))
+    let text=(diff<0)?`期限切れ ${diff}日`:`${diff}日`
+    let line=`${p.name} : ${text} <button onclick='addToGoogleCalendar(${JSON.stringify(p)})'>カレンダー追加</button>`
+    if(exp.getMonth()===now.getMonth()) thisMonth.push(line)
+    if(exp.getMonth()===now.getMonth()+1) nextMonth.push(line)
+  })
+  document.getElementById("thisMonthSummary").innerHTML=thisMonth.join("<br>")
+  document.getElementById("nextMonthSummary").innerHTML=nextMonth.join("<br>")
+}
+
+// 簡易カレンダー描画
+function renderCalendar(){
+  let calDiv=document.getElementById("calendar")
+  calDiv.innerHTML=""
+  let now=new Date()
+  let y=now.getFullYear(), m=now.getMonth()
+  let firstDay=new Date(y,m,1)
+  let lastDay=new Date(y,m+1,0)
+  for(let i=0;i<firstDay.getDay();i++) calDiv.innerHTML+='<div class="day"></div>'
+  for(let d=1;d<=lastDay.getDate();d++){
+    let cell=document.createElement("div"); cell.className="day"
+    let cellDate=new Date(y,m,d)
+    let names=[]
+    patients.forEach(p=>{
+      let exp=new Date(p.expiry)
+      if(exp.getFullYear()===cellDate.getFullYear() && exp.getMonth()===cellDate.getMonth() && exp.getDate()===cellDate.getDate())
+        names.push(`${p.name} <button onclick='addToGoogleCalendar(${JSON.stringify(p)})'>カレンダー追加</button>`)
+    })
+    cell.innerHTML=`<b>${d}</b><br>${names.join("<br>")}`
+    calDiv.appendChild(cell)
+  }
+}
+
+// render() 関数（検索・ソート・フィルタ対応）
 function render(){
-
-let tbody=document.getElementById("list")
-
-tbody.innerHTML=""
-
-let now=new Date()
-now.setHours(0,0,0,0)
-
-patients.forEach((p,i)=>{
-
-let exp=new Date(p.expiry)
-
-let diff=Math.ceil((exp-now)/(1000*60*60*24))
-
-let warn=(diff<=7)?"warn7":(diff<=14)?"warn14":(diff<=30)?"warn30":""
-
-let tr=document.createElement("tr")
-
-if(diff<0)tr.classList.add("expired")
-
-tr.innerHTML=`
-
-<td><b>${p.name}</b></td>
-<td>${exp.toLocaleDateString()}</td>
-<td class="${warn}">${diff<0?"期限切れ":diff+"日"}</td>
-
-<td>
-<button onclick="edit(${i})">編集</button>
-<button onclick="delPatient(${i})">削除</button>
-</td>
-
-`
-
-tbody.appendChild(tr)
-
-})
-
+  let tbody = document.getElementById("list")
+  tbody.innerHTML = ""
+  let now = new Date(); now.setHours(0,0,0,0)
+  let searchVal = document.getElementById("search").value.toLowerCase()
+  let sortVal = document.getElementById("sort").value
+  let filterVal = document.getElementById("filter").value
+  let displayPatients = patients.filter(p=>{
+    if(searchVal && !p.name.toLowerCase().includes(searchVal)) return false
+    if(filterVal==="this" && new Date(p.expiry).getMonth()!==now.getMonth()) return false
+    if(filterVal==="next" && new Date(p.expiry).getMonth()!==now.getMonth()+1) return false
+    return true
+  })
+  if(sortVal==="name") displayPatients.sort((a,b)=>a.name.localeCompare(b.name))
+  else displayPatients.sort((a,b)=>new Date(a.expiry)-new Date(b.expiry))
+  displayPatients.forEach((p,i)=>{
+    let exp = new Date(p.expiry)
+    let diff = Math.ceil((exp-now)/(1000*60*60*24))
+    let warn = (diff<=7)?"warn7":(diff<=14)?"warn14":(diff<=30)?"warn30":""
+    let diffText=(diff<0)?`期限切れ ${diff}日`:`${diff}日`
+    let tr = document.createElement("tr")
+    if(diff<0) tr.classList.add("expired")
+    tr.innerHTML = `
+      <td><b>${p.name}</b></td>
+      <td>${exp.toLocaleDateString()}</td>
+      <td class="${warn}">${diffText}</td>
+      <td>
+        <button onclick="edit(${i})">編集</button>
+        <button onclick="delPatient(${i})">削除</button>
+        <button onclick='addToGoogleCalendar(${JSON.stringify(p)})'>カレンダー追加</button>
+      </td>`
+    tbody.appendChild(tr)
+  })
+  renderSummary()
+  renderCalendar()
 }
 
+// 編集（スクロール付き）
 function edit(i){
-
-let p=patients[i]
-
-editIndex.value=i
-name.value=p.name
-consent.value=p.consent
-first.value=p.first||""
-deform.checked=p.deform
-notice.value=p.notice
-memo.value=p.memo
-
+  let p=patients[i]
+  editIndex.value=i
+  name.value=p.name
+  consent.value=p.consent
+  first.value=p.first||""
+  deform.checked=p.deform
+  notice.value=p.notice
+  memo.value=p.memo
+  document.getElementById("formTitle").scrollIntoView({behavior:"smooth"})
 }
 
+// 削除
 function delPatient(i){
-
-if(confirm("削除しますか？")){
-
-patients.splice(i,1)
-
-localStorage.setItem("patients",JSON.stringify(patients))
-
-render()
-
+  if(confirm("削除しますか？")){
+    patients.splice(i,1)
+    localStorage.setItem("patients", JSON.stringify(patients))
+    render()
+  }
 }
 
-}
-
+// CSVバックアップ
 function backupCSV(){
-
-let csv="\uFEFF名前,同意日,初療日,変形徒手,通知日数,期限,メモ\n"
-
-patients.forEach(p=>{
-
-let row=[
-
-p.name,
-p.consent,
-p.first||"",
-p.deform?"あり":"",
-p.notice,
-new Date(p.expiry).toLocaleDateString(),
-p.memo.replace(/\n/g," ")
-
-]
-
-csv+=row.join(",")+"\n"
-
-})
-
-let blob=new Blob([csv],{type:"text/csv"})
-
-let a=document.createElement("a")
-
-a.href=URL.createObjectURL(blob)
-
-a.download=`consent_backup_${new Date().toISOString().split("T")[0]}.csv`
-
-a.click()
-
+  let csv="\uFEFF名前,同意日,初療日,変形徒手,通知日数,期限,メモ\n"
+  patients.forEach(p=>{
+    let row=[p.name,p.consent,p.first||"",p.deform?"あり":"",p.notice,new Date(p.expiry).toLocaleDateString(),p.memo.replace(/\n/g," ")]
+    csv+=row.join(",")+"\n"
+  })
+  let blob=new Blob([csv],{type:"text/csv"})
+  let a=document.createElement("a")
+  a.href=URL.createObjectURL(blob)
+  a.download=`consent_backup_${new Date().toISOString().split("T")[0]}.csv`
+  a.click()
 }
 
+// JSONバックアップ
 function backupJSON(){
-
-let blob=new Blob([JSON.stringify(patients,null,2)],{type:"application/json"})
-
-let a=document.createElement("a")
-
-a.href=URL.createObjectURL(blob)
-
-a.download=`consent_backup_${new Date().toISOString().split("T")[0]}.json`
-
-a.click()
-
+  let blob=new Blob([JSON.stringify(patients,null,2)],{type:"application/json"})
+  let a=document.createElement("a")
+  a.href=URL.createObjectURL(blob)
+  a.download=`consent_backup_${new Date().toISOString().split("T")[0]}.json`
+  a.click()
 }
 
-function restoreJSON(){
-
-document.getElementById("restoreFile").click()
-
-}
-
+// JSON復元
+function restoreJSON(){ document.getElementById("restoreFile").click() }
 restoreFile.addEventListener("change",function(e){
-
-let file=e.target.files[0]
-
-if(!file)return
-
-let reader=new FileReader()
-
-reader.onload=function(){
-
-try{
-
-patients=JSON.parse(reader.result)
-
-localStorage.setItem("patients",JSON.stringify(patients))
-
-render()
-
-alert("復元完了")
-
-}catch{
-
-alert("JSONファイルエラー")
-
-}
-
-}
-
-reader.readAsText(file)
-
+  let file=e.target.files[0]
+  if(!file) return
+  let reader=new FileReader()
+  reader.onload=function(){
+    try{
+      patients=JSON.parse(reader.result)
+      localStorage.setItem("patients", JSON.stringify(patients))
+      render()
+      alert("復元完了")
+    }catch{
+      alert("JSONファイルエラー")
+    }
+  }
+  reader.readAsText(file)
 })
 
-render()
+// 検索・ソート・フィルタ イベント
+document.getElementById("search").addEventListener("input",render)
+document.getElementById("sort").addEventListener("change",render)
+document.getElementById("filter").addEventListener("change",render)
 
+render()
 </script>
 
 </body>
